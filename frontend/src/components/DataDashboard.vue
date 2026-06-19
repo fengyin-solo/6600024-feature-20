@@ -1,12 +1,38 @@
 <template>
-  <div class="data-dashboard">
+  <div class="data-dashboard" :class="{ 'frozen-mode': store.isFrozen }">
+    <!-- 冻结遮罩提示 -->
+    <div v-if="store.isFrozen" class="frozen-overlay">
+      <el-icon :size="32" color="#e6a23c"><Snowflake /></el-icon>
+      <span class="frozen-text">数据已冻结</span>
+      <span class="frozen-hint">
+        连接已断开，显示为断开前快照数据
+        <span v-if="store.lastDisconnectTime">
+          ({{ formatTime(store.lastDisconnectTime) }})
+        </span>
+      </span>
+    </div>
+
     <!-- 仪表盘区域 -->
     <div class="gauges-section">
-      <h3 class="section-title">实时仪表</h3>
+      <h3 class="section-title">
+        实时仪表
+        <el-tag v-if="store.isFrozen" type="warning" size="small" effect="dark" class="ml-2">
+          <el-icon><Snowflake /></el-icon>
+          已冻结
+        </el-tag>
+      </h3>
       <div class="gauges-grid">
         <!-- 温度仪表 -->
-        <div class="gauge-card">
-          <div class="gauge-label">温度</div>
+        <div class="gauge-card" :class="{ 'gauge-frozen': store.isFrozen, 'gauge-changed': hasNodeDiff('temp_sensor') }">
+          <div class="gauge-header">
+            <div class="gauge-label">温度</div>
+            <el-tag v-if="store.isFrozen" type="warning" size="small" effect="plain">
+              <el-icon :size="12"><Snowflake /></el-icon>
+            </el-tag>
+            <el-tag v-else-if="hasNodeDiff('temp_sensor')" :type="getDiffTagType('temp_sensor')" size="small" effect="dark">
+              {{ getDiffLabel('temp_sensor') }}
+            </el-tag>
+          </div>
           <div class="gauge-value" :class="getTempClass(temperature)">
             {{ temperature.toFixed(1) }}
             <span class="gauge-unit">°C</span>
@@ -23,8 +49,16 @@
         </div>
 
         <!-- 压力表 -->
-        <div class="gauge-card">
-          <div class="gauge-label">压力</div>
+        <div class="gauge-card" :class="{ 'gauge-frozen': store.isFrozen, 'gauge-changed': hasNodeDiff('pressure_transmitter') }">
+          <div class="gauge-header">
+            <div class="gauge-label">压力</div>
+            <el-tag v-if="store.isFrozen" type="warning" size="small" effect="plain">
+              <el-icon :size="12"><Snowflake /></el-icon>
+            </el-tag>
+            <el-tag v-else-if="hasNodeDiff('pressure_transmitter')" :type="getDiffTagType('pressure_transmitter')" size="small" effect="dark">
+              {{ getDiffLabel('pressure_transmitter') }}
+            </el-tag>
+          </div>
           <div class="gauge-value" :class="getPressureClass(pressure)">
             {{ pressure.toFixed(2) }}
             <span class="gauge-unit">MPa</span>
@@ -41,8 +75,16 @@
         </div>
 
         <!-- 流量计 -->
-        <div class="gauge-card">
-          <div class="gauge-label">流量</div>
+        <div class="gauge-card" :class="{ 'gauge-frozen': store.isFrozen, 'gauge-changed': hasNodeDiff('flow_meter') }">
+          <div class="gauge-header">
+            <div class="gauge-label">流量</div>
+            <el-tag v-if="store.isFrozen" type="warning" size="small" effect="plain">
+              <el-icon :size="12"><Snowflake /></el-icon>
+            </el-tag>
+            <el-tag v-else-if="hasNodeDiff('flow_meter')" :type="getDiffTagType('flow_meter')" size="small" effect="dark">
+              {{ getDiffLabel('flow_meter') }}
+            </el-tag>
+          </div>
           <div class="gauge-value text-blue-400">
             {{ flow.toFixed(1) }}
             <span class="gauge-unit">L/min</span>
@@ -59,8 +101,16 @@
         </div>
 
         <!-- 阀门开度 -->
-        <div class="gauge-card">
-          <div class="gauge-label">阀门开度</div>
+        <div class="gauge-card" :class="{ 'gauge-frozen': store.isFrozen, 'gauge-changed': hasNodeDiff('valve_position') }">
+          <div class="gauge-header">
+            <div class="gauge-label">阀门开度</div>
+            <el-tag v-if="store.isFrozen" type="warning" size="small" effect="plain">
+              <el-icon :size="12"><Snowflake /></el-icon>
+            </el-tag>
+            <el-tag v-else-if="hasNodeDiff('valve_position')" :type="getDiffTagType('valve_position')" size="small" effect="dark">
+              {{ getDiffLabel('valve_position') }}
+            </el-tag>
+          </div>
           <div class="gauge-value text-purple-400">
             {{ valvePosition.toFixed(0) }}
             <span class="gauge-unit">%</span>
@@ -77,8 +127,16 @@
         </div>
 
         <!-- 电机转速 -->
-        <div class="gauge-card">
-          <div class="gauge-label">电机转速</div>
+        <div class="gauge-card" :class="{ 'gauge-frozen': store.isFrozen, 'gauge-changed': hasNodeDiff('motor_speed') }">
+          <div class="gauge-header">
+            <div class="gauge-label">电机转速</div>
+            <el-tag v-if="store.isFrozen" type="warning" size="small" effect="plain">
+              <el-icon :size="12"><Snowflake /></el-icon>
+            </el-tag>
+            <el-tag v-else-if="hasNodeDiff('motor_speed')" :type="getDiffTagType('motor_speed')" size="small" effect="dark">
+              {{ getDiffLabel('motor_speed') }}
+            </el-tag>
+          </div>
           <div class="gauge-value" :class="getSpeedClass(motorSpeed)">
             {{ motorSpeed }}
             <span class="gauge-unit">RPM</span>
@@ -95,8 +153,16 @@
         </div>
 
         <!-- 泵状态 -->
-        <div class="gauge-card">
-          <div class="gauge-label">泵运行状态</div>
+        <div class="gauge-card" :class="{ 'gauge-frozen': store.isFrozen, 'gauge-changed': hasNodeDiff('pump_status') }">
+          <div class="gauge-header">
+            <div class="gauge-label">泵运行状态</div>
+            <el-tag v-if="store.isFrozen" type="warning" size="small" effect="plain">
+              <el-icon :size="12"><Snowflake /></el-icon>
+            </el-tag>
+            <el-tag v-else-if="hasNodeDiff('pump_status')" :type="getDiffTagType('pump_status')" size="small" effect="dark">
+              {{ getDiffLabel('pump_status') }}
+            </el-tag>
+          </div>
           <div class="gauge-value" :class="pumpStatus ? 'text-green-400' : 'text-red-400'">
             {{ pumpStatus ? '运行中' : '已停止' }}
           </div>
@@ -136,12 +202,53 @@ import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, TitleComponent } from 'echarts/components'
-import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
+import { CircleCheckFilled, CircleCloseFilled, Snowflake } from '@element-plus/icons-vue'
 import { useOpcuaStore } from '../store/opcua'
+import type { NodeDataDiff } from '../types'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, TitleComponent])
 
 const store = useOpcuaStore()
+
+function formatTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString('zh-CN', { hour12: false })
+}
+
+function getNodeDiff(nodeId: string): NodeDataDiff | undefined {
+  if (!store.dataDiff) return undefined
+  return store.dataDiff.changedNodes.find(d => d.nodeId === nodeId)
+}
+
+function hasNodeDiff(nodeId: string): boolean {
+  return !!getNodeDiff(nodeId)
+}
+
+function getDiffTagType(nodeId: string): 'success' | 'warning' | 'danger' | 'info' {
+  const diff = getNodeDiff(nodeId)
+  if (!diff) return 'info'
+  if (diff.qualityChanged && diff.newQuality !== 'Good') return 'danger'
+  if (diff.valueChanged) {
+    if (typeof diff.oldValue === 'number' && typeof diff.newValue === 'number') {
+      const pct = diff.oldValue !== 0 ? Math.abs((diff.newValue - diff.oldValue) / Math.abs(diff.oldValue)) : 0
+      if (pct > 0.1) return 'warning'
+    }
+    return 'success'
+  }
+  return 'info'
+}
+
+function getDiffLabel(nodeId: string): string {
+  const diff = getNodeDiff(nodeId)
+  if (!diff) return ''
+  if (typeof diff.oldValue === 'number' && typeof diff.newValue === 'number') {
+    const delta = diff.newValue - diff.oldValue
+    const pct = diff.oldValue !== 0 ? ((delta / Math.abs(diff.oldValue)) * 100).toFixed(1) : '0.0'
+    return delta > 0 ? `↑ +${pct}%` : `↓ ${pct}%`
+  }
+  if (diff.valueChanged) return '已变更'
+  if (diff.qualityChanged) return `质量: ${diff.newQuality}`
+  return '变化'
+}
 
 // 获取节点当前值
 function getNodeValue(nodeId: string): number | boolean {
@@ -262,6 +369,38 @@ const flowChartOption = computed(() => buildChartOption('流量趋势', 'flow_me
   height: 100%;
   overflow-y: auto;
   padding: 12px;
+  position: relative;
+}
+
+.data-dashboard.frozen-mode {
+  filter: saturate(0.7);
+}
+
+.frozen-overlay {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  background: linear-gradient(90deg, rgba(230, 162, 60, 0.15), rgba(230, 162, 60, 0.05));
+  border: 1px solid rgba(230, 162, 60, 0.4);
+  border-radius: 8px;
+  backdrop-filter: blur(4px);
+}
+
+.frozen-text {
+  color: #e6a23c;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.frozen-hint {
+  color: #94a3b8;
+  font-size: 12px;
+  margin-left: auto;
 }
 
 .section-title {
@@ -271,6 +410,8 @@ const flowChartOption = computed(() => buildChartOption('流量趋势', 'flow_me
   margin-bottom: 12px;
   padding-left: 8px;
   border-left: 3px solid #06b6d4;
+  display: flex;
+  align-items: center;
 }
 
 .gauges-section {
@@ -291,6 +432,48 @@ const flowChartOption = computed(() => buildChartOption('流量趋势', 'flow_me
   display: flex;
   flex-direction: column;
   gap: 8px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.gauge-card.gauge-frozen {
+  border-color: rgba(230, 162, 60, 0.5);
+  background: rgba(30, 41, 59, 0.6);
+}
+
+.gauge-card.gauge-frozen::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 8px;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(230, 162, 60, 0.03) 10px,
+    rgba(230, 162, 60, 0.03) 20px
+  );
+  pointer-events: none;
+}
+
+.gauge-card.gauge-changed {
+  border-color: rgba(230, 162, 60, 0.6);
+  box-shadow: 0 0 12px rgba(230, 162, 60, 0.15);
+  animation: changed-pulse 2s ease-in-out;
+}
+
+@keyframes changed-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(230, 162, 60, 0.15); }
+  50% { box-shadow: 0 0 20px rgba(230, 162, 60, 0.3); }
+}
+
+.gauge-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .gauge-label {

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { OPCUANode, DataValue, AlarmEvent, SubscriptionConfig } from '../types'
+import type { OPCUANode, DataValue, AlarmEvent, SubscriptionConfig, DataSnapshot, NodeDataDiff, DataDiffResult } from '../types'
 
 export const useOpcuaStore = defineStore('opcua', () => {
   // 状态
@@ -11,6 +11,11 @@ export const useOpcuaStore = defineStore('opcua', () => {
   const realTimeData = ref<Map<string, DataValue>>(new Map())
   const isConnected = ref(false)
   const dataHistory = ref<Map<string, Array<{ timestamp: number; value: number }>>>(new Map())
+  const isFrozen = ref(false)
+  const frozenSnapshot = ref<DataSnapshot | null>(null)
+  const lastDisconnectTime = ref<number | null>(null)
+  const dataDiff = ref<DataDiffResult | null>(null)
+  const showDiffDialog = ref(false)
 
   // 初始化模拟节点树
   function initNodeTree() {
@@ -263,15 +268,105 @@ export const useOpcuaStore = defineStore('opcua', () => {
     alarms.value = []
   }
 
+  // 保存数据快照
+  function saveSnapshot() {
+    const nodeValues = new Map<string, { value: any; quality: string }>()
+    function traverse(nodes: OPCUANode[]) {
+      nodes.forEach(node => {
+        if (node.type === 'Variable') {
+          nodeValues.set(node.id, {
+            value: node.value,
+            quality: node.quality || 'Unknown'
+          })
+        }
+        if (node.children) {
+          traverse(node.children)
+        }
+      })
+    }
+    traverse(nodeTree.value)
+
+    frozenSnapshot.value = {
+      timestamp: Date.now(),
+      realTimeData: new Map(realTimeData.value),
+      nodeValues
+    }
+  }
+
+  // 计算数据差异
+  function computeDataDiff(): DataDiffResult | null {
+    if (!frozenSnapshot.value) return null
+
+    const changedNodes: NodeDataDiff[] = []
+    const allVariableNodes = getAllVariableNodes()
+
+    allVariableNodes.forEach(node => {
+      const oldData = frozenSnapshot.value!.nodeValues.get(node.id)
+      if (!oldData) return
+
+      const newData = realTimeData.value.get(node.id)
+      const newValue = newData ? newData.value : node.value
+      const newQuality = newData ? newData.quality : (node.quality || 'Unknown')
+
+      const valueChanged = oldData.value !== newValue
+      const qualityChanged = oldData.quality !== newQuality
+
+      if (valueChanged || qualityChanged) {
+        changedNodes.push({
+          nodeId: node.id,
+          nodeName: node.name,
+          oldValue: oldData.value,
+          newValue,
+          oldQuality: oldData.quality,
+          newQuality,
+          valueChanged,
+          qualityChanged,
+          unit: node.unit
+        })
+      }
+    })
+
+    return {
+      reconnectTimestamp: Date.now(),
+      disconnectTimestamp: frozenSnapshot.value.timestamp,
+      duration: Date.now() - frozenSnapshot.value.timestamp,
+      changedNodes,
+      totalNodes: allVariableNodes.length,
+      changedCount: changedNodes.length
+    }
+  }
+
+  // 清除差异数据
+  function clearDataDiff() {
+    dataDiff.value = null
+    showDiffDialog.value = false
+  }
+
   // 连接模拟
   function connect() {
+    const wasDisconnected = !isConnected.value && isFrozen.value
     isConnected.value = true
-    initNodeTree()
+    isFrozen.value = false
+
+    if (wasDisconnected) {
+      const diff = computeDataDiff()
+      if (diff) {
+        dataDiff.value = diff
+        showDiffDialog.value = true
+      }
+    }
+
+    if (nodeTree.value.length === 0) {
+      initNodeTree()
+    }
   }
 
   // 断开连接
   function disconnect() {
     isConnected.value = false
+    isFrozen.value = true
+    lastDisconnectTime.value = Date.now()
+    saveSnapshot()
   }
 
   // 计算属性
@@ -287,6 +382,11 @@ export const useOpcuaStore = defineStore('opcua', () => {
     realTimeData,
     isConnected,
     dataHistory,
+    isFrozen,
+    frozenSnapshot,
+    lastDisconnectTime,
+    dataDiff,
+    showDiffDialog,
     // 方法
     initNodeTree,
     simulateDataUpdate,
@@ -298,6 +398,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
     connect,
     disconnect,
     getAllVariableNodes,
+    clearDataDiff,
     // 计算属性
     activeAlarmsCount,
     criticalAlarmsCount

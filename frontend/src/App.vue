@@ -18,6 +18,20 @@
           <el-icon><CircleClose /></el-icon>
           离线
         </el-tag>
+        <el-tag type="warning" v-if="store.isFrozen" class="status-tag frozen-tag" effect="dark">
+          <el-icon><Snowflake /></el-icon>
+          数据已冻结
+        </el-tag>
+        <el-button
+          v-if="store.dataDiff && !store.showDiffDialog"
+          type="warning"
+          size="small"
+          plain
+          @click="store.showDiffDialog = true"
+        >
+          <el-icon><DataAnalysis /></el-icon>
+          查看差异 ({{ store.dataDiff.changedCount }})
+        </el-button>
         <el-button
           :type="store.isConnected ? 'danger' : 'success'"
           size="small"
@@ -100,12 +114,83 @@
         </div>
       </aside>
     </div>
+
+    <!-- 数据差异对话框 -->
+    <el-dialog
+      v-model="store.showDiffDialog"
+      title="恢复连接 - 数据差异提示"
+      width="640px"
+      class="diff-dialog"
+      :close-on-click-modal="false"
+      @close="store.clearDataDiff"
+    >
+      <template v-if="store.dataDiff">
+        <div class="diff-summary">
+          <el-alert
+            :title="`连接已恢复，断开时长: ${formatDuration(store.dataDiff.duration)}`"
+            type="warning"
+            :closable="false"
+            show-icon
+          />
+          <div class="diff-stats">
+            <el-statistic title="监控节点总数" :value="store.dataDiff.totalNodes" />
+            <el-statistic title="发生变化节点" :value="store.dataDiff.changedCount" />
+            <el-statistic title="未变化节点" :value="store.dataDiff.totalNodes - store.dataDiff.changedCount" />
+          </div>
+        </div>
+
+        <el-divider />
+
+        <div v-if="store.dataDiff.changedCount === 0" class="no-diff">
+          <el-empty description="所有节点数据无变化" :image-size="80" />
+        </div>
+
+        <div v-else class="diff-list">
+          <div
+            v-for="diff in store.dataDiff.changedNodes"
+            :key="diff.nodeId"
+            class="diff-item"
+          >
+            <div class="diff-item-header">
+              <span class="diff-node-name">{{ diff.nodeName }}</span>
+              <el-tag size="small" type="info">{{ diff.nodeId }}</el-tag>
+            </div>
+            <div class="diff-item-body">
+              <div v-if="diff.valueChanged" class="diff-row">
+                <span class="diff-label">数值:</span>
+                <span class="diff-old">{{ formatValue(diff.oldValue, diff.unit) }}</span>
+                <el-icon class="diff-arrow" color="#e6a23c"><Right /></el-icon>
+                <span class="diff-new">{{ formatValue(diff.newValue, diff.unit) }}</span>
+                <span
+                  class="diff-change-badge"
+                  :class="getChangeClass(diff.oldValue, diff.newValue)"
+                >
+                  {{ getChangeLabel(diff.oldValue, diff.newValue) }}
+                </span>
+              </div>
+              <div v-if="diff.qualityChanged" class="diff-row">
+                <span class="diff-label">质量:</span>
+                <el-tag size="small" :type="getQualityType(diff.oldQuality)">{{ diff.oldQuality }}</el-tag>
+                <el-icon class="diff-arrow" color="#e6a23c"><Right /></el-icon>
+                <el-tag size="small" :type="getQualityType(diff.newQuality)">{{ diff.newQuality }}</el-tag>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template #footer>
+        <el-button type="primary" @click="store.clearDataDiff">
+          确认并同步数据
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { Monitor, Bell, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { Monitor, Bell, CircleCheck, CircleClose, Snowflake, DataAnalysis, Right } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useOpcuaStore } from './store/opcua'
 import NodeTree from './components/NodeTree.vue'
@@ -162,6 +247,58 @@ function getSeverityLabel(severity: AlarmEvent['severity']) {
 
 function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString('zh-CN', { hour12: false })
+}
+
+function formatDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  if (hours > 0) {
+    return `${hours}小时${minutes % 60}分${seconds % 60}秒`
+  }
+  if (minutes > 0) {
+    return `${minutes}分${seconds % 60}秒`
+  }
+  return `${seconds}秒`
+}
+
+function formatValue(value: any, unit?: string): string {
+  if (typeof value === 'boolean') {
+    return value ? '运行中' : '已停止'
+  }
+  if (typeof value === 'number') {
+    const formatted = Number.isInteger(value) ? String(value) : value.toFixed(2)
+    return unit ? `${formatted} ${unit}` : formatted
+  }
+  return String(value)
+}
+
+function getChangeClass(oldValue: any, newValue: any): string {
+  if (typeof oldValue !== 'number' || typeof newValue !== 'number') return 'change-equal'
+  const diff = newValue - oldValue
+  if (diff > 0) return 'change-up'
+  if (diff < 0) return 'change-down'
+  return 'change-equal'
+}
+
+function getChangeLabel(oldValue: any, newValue: any): string {
+  if (typeof oldValue !== 'number' || typeof newValue !== 'number') {
+    return oldValue === newValue ? '不变' : '已变更'
+  }
+  const diff = newValue - oldValue
+  const pct = oldValue !== 0 ? ((diff / Math.abs(oldValue)) * 100).toFixed(1) : '0.0'
+  if (diff > 0) return `↑ +${diff.toFixed(2)} (${pct}%)`
+  if (diff < 0) return `↓ ${diff.toFixed(2)} (${pct}%)`
+  return '不变'
+}
+
+function getQualityType(quality: string): 'success' | 'danger' | 'warning' | 'info' {
+  switch (quality) {
+    case 'Good': return 'success'
+    case 'Bad': return 'danger'
+    case 'Uncertain': return 'warning'
+    default: return 'info'
+  }
 }
 
 onMounted(() => {
@@ -338,5 +475,126 @@ onUnmounted(() => {
 
 .alarm-badge {
   cursor: pointer;
+}
+
+.frozen-tag {
+  animation: frozen-pulse 2s ease-in-out infinite;
+}
+
+@keyframes frozen-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+:deep(.diff-dialog) {
+  --el-dialog-bg-color: #1e293b;
+  --el-dialog-title-color: #e0e0e0;
+}
+
+.diff-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.diff-stats {
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 0;
+}
+
+:deep(.diff-stats .el-statistic) {
+  --el-statistic-content-color: #22d3ee;
+  --el-statistic-head-color: #94a3b8;
+  text-align: center;
+}
+
+.no-diff {
+  padding: 24px 0;
+}
+
+.diff-list {
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.diff-item {
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.diff-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.diff-node-name {
+  font-weight: 600;
+  color: #e0e0e0;
+  font-size: 14px;
+}
+
+.diff-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diff-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.diff-label {
+  color: #94a3b8;
+  min-width: 40px;
+}
+
+.diff-old {
+  color: #f56c6c;
+  font-family: monospace;
+  text-decoration: line-through;
+}
+
+.diff-new {
+  color: #67c23a;
+  font-family: monospace;
+  font-weight: 600;
+}
+
+.diff-arrow {
+  flex-shrink: 0;
+}
+
+.diff-change-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.change-up {
+  background: rgba(103, 194, 58, 0.15);
+  color: #67c23a;
+}
+
+.change-down {
+  background: rgba(245, 108, 108, 0.15);
+  color: #f56c6c;
+}
+
+.change-equal {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
 }
 </style>

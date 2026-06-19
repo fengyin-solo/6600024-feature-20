@@ -60,3 +60,33 @@ export interface NodeDetail {
   history?: HistoryDataPoint[]
   subscriptions?: SubscriptionConfig[]
 }
+
+// 数据快照（冻结时保存）
+export interface DataSnapshot {
+  timestamp: number
+  realTimeData: Map<string, DataValue>
+  nodeValues: Map<string, { value: any; quality: string }>
+}
+
+// 单个节点数据差异
+export interface NodeDataDiff {
+  nodeId: string
+  nodeName: string
+  oldValue: any
+  newValue: any
+  oldQuality: string
+  newQuality: string
+  valueChanged: boolean
+  qualityChanged: boolean
+  unit?: string
+}
+
+// 数据差异汇总
+export interface DataDiffResult {
+  reconnectTimestamp: number
+  disconnectTimestamp: number
+  duration: number
+  changedNodes: NodeDataDiff[]
+  totalNodes: number
+  changedCount: number
+}

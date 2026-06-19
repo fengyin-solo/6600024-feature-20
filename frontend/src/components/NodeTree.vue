@@ -1,10 +1,16 @@
 <template>
-  <div class="node-tree-container">
+  <div class="node-tree-container" :class="{ 'frozen-mode': store.isFrozen }">
     <div class="tree-header">
       <h3 class="text-lg font-bold text-cyan-400">OPC-UA 节点树</h3>
-      <el-tag :type="store.isConnected ? 'success' : 'danger'" size="small">
-        {{ store.isConnected ? '已连接' : '未连接' }}
-      </el-tag>
+      <div class="tree-header-tags">
+        <el-tag v-if="store.isFrozen" type="warning" size="small" effect="dark">
+          <el-icon :size="12"><Snowflake /></el-icon>
+          已冻结
+        </el-tag>
+        <el-tag :type="store.isConnected ? 'success' : 'danger'" size="small">
+          {{ store.isConnected ? '已连接' : '未连接' }}
+        </el-tag>
+      </div>
     </div>
 
     <el-tree
@@ -26,6 +32,24 @@
           </el-icon>
           <span class="node-label">{{ data.name }}</span>
           <el-tag
+            v-if="data.type === 'Variable' && store.isFrozen"
+            type="warning"
+            size="small"
+            effect="plain"
+            class="ml-2"
+          >
+            <el-icon :size="10"><Snowflake /></el-icon>
+          </el-tag>
+          <el-tag
+            v-else-if="data.type === 'Variable' && hasNodeDiff(data.id)"
+            :type="getDiffTagType(data.id)"
+            size="small"
+            effect="dark"
+            class="ml-2"
+          >
+            {{ getDiffLabel(data.id) }}
+          </el-tag>
+          <el-tag
             v-if="data.type === 'Variable' && data.quality"
             :type="data.quality === 'Good' ? 'success' : data.quality === 'Bad' ? 'danger' : 'warning'"
             size="small"
@@ -33,7 +57,11 @@
           >
             {{ data.quality }}
           </el-tag>
-          <span v-if="data.type === 'Variable' && data.value !== undefined" class="node-value">
+          <span
+            v-if="data.type === 'Variable' && data.value !== undefined"
+            class="node-value"
+            :class="{ 'value-frozen': store.isFrozen, 'value-changed': hasNodeDiff(data.id) }"
+          >
             {{ data.value }}{{ data.unit ? ' ' + data.unit : '' }}
           </span>
         </span>
@@ -95,10 +123,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Folder, DataLine } from '@element-plus/icons-vue'
+import { Folder, DataLine, Snowflake } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useOpcuaStore } from '../store/opcua'
-import type { OPCUANode } from '../types'
+import type { OPCUANode, NodeDataDiff } from '../types'
 
 const store = useOpcuaStore()
 
@@ -111,6 +139,42 @@ const isSubscribed = computed(() => {
   if (!store.selectedNode) return false
   return store.subscriptions.has(store.selectedNode.id)
 })
+
+function getNodeDiff(nodeId: string): NodeDataDiff | undefined {
+  if (!store.dataDiff) return undefined
+  return store.dataDiff.changedNodes.find(d => d.nodeId === nodeId)
+}
+
+function hasNodeDiff(nodeId: string): boolean {
+  return !!getNodeDiff(nodeId)
+}
+
+function getDiffTagType(nodeId: string): 'success' | 'warning' | 'danger' | 'info' {
+  const diff = getNodeDiff(nodeId)
+  if (!diff) return 'info'
+  if (diff.qualityChanged && diff.newQuality !== 'Good') return 'danger'
+  if (diff.valueChanged) {
+    if (typeof diff.oldValue === 'number' && typeof diff.newValue === 'number') {
+      const pct = diff.oldValue !== 0 ? Math.abs((diff.newValue - diff.oldValue) / Math.abs(diff.oldValue)) : 0
+      if (pct > 0.1) return 'warning'
+    }
+    return 'success'
+  }
+  return 'info'
+}
+
+function getDiffLabel(nodeId: string): string {
+  const diff = getNodeDiff(nodeId)
+  if (!diff) return ''
+  if (typeof diff.oldValue === 'number' && typeof diff.newValue === 'number') {
+    const delta = diff.newValue - diff.oldValue
+    const pct = diff.oldValue !== 0 ? ((delta / Math.abs(diff.oldValue)) * 100).toFixed(1) : '0.0'
+    return delta > 0 ? `↑ +${pct}%` : `↓ ${pct}%`
+  }
+  if (diff.valueChanged) return '已变更'
+  if (diff.qualityChanged) return `Q: ${diff.newQuality}`
+  return '变化'
+}
 
 function handleNodeClick(data: OPCUANode) {
   store.selectNode(data)
@@ -140,11 +204,20 @@ function handleReadValue() {
   padding: 12px;
 }
 
+.node-tree-container.frozen-mode {
+  filter: saturate(0.7);
+}
+
 .tree-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
+}
+
+.tree-header-tags {
+  display: flex;
+  gap: 6px;
 }
 
 .custom-tree-node {
@@ -166,6 +239,24 @@ function handleReadValue() {
   font-size: 12px;
   color: #67c23a;
   padding-left: 8px;
+  transition: color 0.3s ease;
+}
+
+.node-value.value-frozen {
+  color: #e6a23c;
+  font-style: italic;
+}
+
+.node-value.value-changed {
+  color: #f56c6c;
+  font-weight: 600;
+  animation: value-changed-blink 2s ease-in-out;
+}
+
+@keyframes value-changed-blink {
+  0%, 100% { opacity: 1; }
+  25%, 75% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
 .node-detail-panel {
