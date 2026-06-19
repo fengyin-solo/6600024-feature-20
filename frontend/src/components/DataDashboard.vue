@@ -2,7 +2,7 @@
   <div class="data-dashboard" :class="{ 'frozen-mode': store.isFrozen }">
     <!-- 冻结遮罩提示 -->
     <div v-if="store.isFrozen" class="frozen-overlay">
-      <el-icon :size="32" color="#e6a23c"><Snowflake /></el-icon>
+      <el-icon :size="32" color="#e6a23c"><Lock /></el-icon>
       <span class="frozen-text">数据已冻结</span>
       <span class="frozen-hint">
         连接已断开，显示为断开前快照数据
@@ -17,7 +17,7 @@
       <h3 class="section-title">
         实时仪表
         <el-tag v-if="store.isFrozen" type="warning" size="small" effect="dark" class="ml-2">
-          <el-icon><Snowflake /></el-icon>
+          <el-icon><Lock /></el-icon>
           已冻结
         </el-tag>
       </h3>
@@ -27,7 +27,7 @@
           <div class="gauge-header">
             <div class="gauge-label">温度</div>
             <el-tag v-if="store.isFrozen" type="warning" size="small" effect="plain">
-              <el-icon :size="12"><Snowflake /></el-icon>
+              <el-icon :size="12"><Lock /></el-icon>
             </el-tag>
             <el-tag v-else-if="hasNodeDiff('temp_sensor')" :type="getDiffTagType('temp_sensor')" size="small" effect="dark">
               {{ getDiffLabel('temp_sensor') }}
@@ -38,7 +38,7 @@
             <span class="gauge-unit">°C</span>
           </div>
           <el-progress
-            :percentage="Math.min((temperature / 50) * 100, 100)"
+            :percentage="Math.max(0, Math.min((temperature / 50) * 100, 100))"
             :color="getTempColor(temperature)"
             :stroke-width="8"
           />
@@ -53,7 +53,7 @@
           <div class="gauge-header">
             <div class="gauge-label">压力</div>
             <el-tag v-if="store.isFrozen" type="warning" size="small" effect="plain">
-              <el-icon :size="12"><Snowflake /></el-icon>
+              <el-icon :size="12"><Lock /></el-icon>
             </el-tag>
             <el-tag v-else-if="hasNodeDiff('pressure_transmitter')" :type="getDiffTagType('pressure_transmitter')" size="small" effect="dark">
               {{ getDiffLabel('pressure_transmitter') }}
@@ -64,7 +64,7 @@
             <span class="gauge-unit">MPa</span>
           </div>
           <el-progress
-            :percentage="Math.min((pressure / 6) * 100, 100)"
+            :percentage="Math.max(0, Math.min((pressure / 6) * 100, 100))"
             :color="getPressureColor(pressure)"
             :stroke-width="8"
           />
@@ -79,7 +79,7 @@
           <div class="gauge-header">
             <div class="gauge-label">流量</div>
             <el-tag v-if="store.isFrozen" type="warning" size="small" effect="plain">
-              <el-icon :size="12"><Snowflake /></el-icon>
+              <el-icon :size="12"><Lock /></el-icon>
             </el-tag>
             <el-tag v-else-if="hasNodeDiff('flow_meter')" :type="getDiffTagType('flow_meter')" size="small" effect="dark">
               {{ getDiffLabel('flow_meter') }}
@@ -90,7 +90,7 @@
             <span class="gauge-unit">L/min</span>
           </div>
           <el-progress
-            :percentage="Math.min((flow / 300) * 100, 100)"
+            :percentage="Math.max(0, Math.min((flow / 300) * 100, 100))"
             color="#60a5fa"
             :stroke-width="8"
           />
@@ -105,7 +105,7 @@
           <div class="gauge-header">
             <div class="gauge-label">阀门开度</div>
             <el-tag v-if="store.isFrozen" type="warning" size="small" effect="plain">
-              <el-icon :size="12"><Snowflake /></el-icon>
+              <el-icon :size="12"><Lock /></el-icon>
             </el-tag>
             <el-tag v-else-if="hasNodeDiff('valve_position')" :type="getDiffTagType('valve_position')" size="small" effect="dark">
               {{ getDiffLabel('valve_position') }}
@@ -116,7 +116,7 @@
             <span class="gauge-unit">%</span>
           </div>
           <el-progress
-            :percentage="valvePosition"
+            :percentage="Math.max(0, Math.min(valvePosition, 100))"
             color="#a78bfa"
             :stroke-width="8"
           />
@@ -131,7 +131,7 @@
           <div class="gauge-header">
             <div class="gauge-label">电机转速</div>
             <el-tag v-if="store.isFrozen" type="warning" size="small" effect="plain">
-              <el-icon :size="12"><Snowflake /></el-icon>
+              <el-icon :size="12"><Lock /></el-icon>
             </el-tag>
             <el-tag v-else-if="hasNodeDiff('motor_speed')" :type="getDiffTagType('motor_speed')" size="small" effect="dark">
               {{ getDiffLabel('motor_speed') }}
@@ -142,7 +142,7 @@
             <span class="gauge-unit">RPM</span>
           </div>
           <el-progress
-            :percentage="Math.min((motorSpeed / 2000) * 100, 100)"
+            :percentage="Math.max(0, Math.min((motorSpeed / 2000) * 100, 100))"
             :color="getSpeedColor(motorSpeed)"
             :stroke-width="8"
           />
@@ -157,7 +157,7 @@
           <div class="gauge-header">
             <div class="gauge-label">泵运行状态</div>
             <el-tag v-if="store.isFrozen" type="warning" size="small" effect="plain">
-              <el-icon :size="12"><Snowflake /></el-icon>
+              <el-icon :size="12"><Lock /></el-icon>
             </el-tag>
             <el-tag v-else-if="hasNodeDiff('pump_status')" :type="getDiffTagType('pump_status')" size="small" effect="dark">
               {{ getDiffLabel('pump_status') }}
@@ -202,7 +202,7 @@ import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, TitleComponent } from 'echarts/components'
-import { CircleCheckFilled, CircleCloseFilled, Snowflake } from '@element-plus/icons-vue'
+import { CircleCheckFilled, CircleCloseFilled, Lock } from '@element-plus/icons-vue'
 import { useOpcuaStore } from '../store/opcua'
 import type { NodeDataDiff } from '../types'
 

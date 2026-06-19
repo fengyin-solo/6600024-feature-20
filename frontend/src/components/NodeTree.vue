@@ -4,7 +4,7 @@
       <h3 class="text-lg font-bold text-cyan-400">OPC-UA 节点树</h3>
       <div class="tree-header-tags">
         <el-tag v-if="store.isFrozen" type="warning" size="small" effect="dark">
-          <el-icon :size="12"><Snowflake /></el-icon>
+          <el-icon :size="12"><Lock /></el-icon>
           已冻结
         </el-tag>
         <el-tag :type="store.isConnected ? 'success' : 'danger'" size="small">
@@ -38,7 +38,7 @@
             effect="plain"
             class="ml-2"
           >
-            <el-icon :size="10"><Snowflake /></el-icon>
+            <el-icon :size="10"><Lock /></el-icon>
           </el-tag>
           <el-tag
             v-else-if="data.type === 'Variable' && hasNodeDiff(data.id)"
@@ -123,7 +123,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Folder, DataLine, Snowflake } from '@element-plus/icons-vue'
+import { Folder, DataLine, Lock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useOpcuaStore } from '../store/opcua'
 import type { OPCUANode, NodeDataDiff } from '../types'

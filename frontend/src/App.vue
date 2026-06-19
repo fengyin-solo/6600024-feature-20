@@ -19,15 +19,15 @@
           离线
         </el-tag>
         <el-tag type="warning" v-if="store.isFrozen" class="status-tag frozen-tag" effect="dark">
-          <el-icon><Snowflake /></el-icon>
+          <el-icon><Lock /></el-icon>
           数据已冻结
         </el-tag>
         <el-button
-          v-if="store.dataDiff && !store.showDiffDialog"
+          v-if="store.dataDiff"
           type="warning"
           size="small"
           plain
-          @click="store.showDiffDialog = true"
+          @click="store.openDiffDialog"
         >
           <el-icon><DataAnalysis /></el-icon>
           查看差异 ({{ store.dataDiff.changedCount }})
@@ -122,7 +122,6 @@
       width="640px"
       class="diff-dialog"
       :close-on-click-modal="false"
-      @close="store.clearDataDiff"
     >
       <template v-if="store.dataDiff">
         <div class="diff-summary">
@@ -180,9 +179,20 @@
       </template>
 
       <template #footer>
-        <el-button type="primary" @click="store.clearDataDiff">
-          确认并同步数据
-        </el-button>
+        <div class="dialog-footer-tip">
+          <span class="text-gray-400 text-sm">
+            <el-icon class="mr-1"><InfoFilled /></el-icon>
+            关闭后可随时点击顶部"查看差异"按钮重新查看
+          </span>
+        </div>
+        <div class="dialog-footer-buttons">
+          <el-button @click="store.closeDiffDialog">
+            稍后查看
+          </el-button>
+          <el-button type="primary" @click="store.clearDataDiff">
+            确认并同步数据
+          </el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -190,7 +200,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { Monitor, Bell, CircleCheck, CircleClose, Snowflake, DataAnalysis, Right } from '@element-plus/icons-vue'
+import { Monitor, Bell, CircleCheck, CircleClose, Lock, DataAnalysis, Right, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useOpcuaStore } from './store/opcua'
 import NodeTree from './components/NodeTree.vue'
@@ -302,8 +312,7 @@ function getQualityType(quality: string): 'success' | 'danger' | 'warning' | 'in
 }
 
 onMounted(() => {
-  store.connect()
-  startSimulation()
+  store.initNodeTree()
 })
 
 onUnmounted(() => {
@@ -596,5 +605,30 @@ onUnmounted(() => {
 .change-equal {
   background: rgba(148, 163, 184, 0.15);
   color: #94a3b8;
+}
+
+.dialog-footer-tip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0;
+  margin-bottom: 8px;
+  background: rgba(230, 162, 60, 0.08);
+  border-radius: 6px;
+  border: 1px dashed rgba(230, 162, 60, 0.3);
+}
+
+.dialog-footer-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+:deep(.diff-dialog .el-dialog__footer) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(71, 85, 105, 0.5);
 }
 </style>

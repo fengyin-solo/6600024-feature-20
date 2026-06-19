@@ -336,10 +336,23 @@ export const useOpcuaStore = defineStore('opcua', () => {
     }
   }
 
-  // 清除差异数据
+  // 关闭差异对话框（保留数据）
+  function closeDiffDialog() {
+    showDiffDialog.value = false
+  }
+
+  // 清除差异数据（完全清除）
   function clearDataDiff() {
     dataDiff.value = null
     showDiffDialog.value = false
+    frozenSnapshot.value = null
+  }
+
+  // 打开差异对话框
+  function openDiffDialog() {
+    if (dataDiff.value) {
+      showDiffDialog.value = true
+    }
   }
 
   // 连接模拟
@@ -349,6 +362,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
     isFrozen.value = false
 
     if (wasDisconnected) {
+      simulateDataUpdate()
       const diff = computeDataDiff()
       if (diff) {
         dataDiff.value = diff
@@ -398,6 +412,8 @@ export const useOpcuaStore = defineStore('opcua', () => {
     connect,
     disconnect,
     getAllVariableNodes,
+    closeDiffDialog,
+    openDiffDialog,
     clearDataDiff,
     // 计算属性
     activeAlarmsCount,
